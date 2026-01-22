@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ttFont ttLibVersion="4.61">
+
+  <GDEF>
+    <Version value="0x00010000"/>
+    <GlyphClassDef>
+      <ClassDef glyph="C" class="1"/>
+      <ClassDef glyph="E" class="1"/>
+      <ClassDef glyph="G" class="1"/>
+      <ClassDef glyph="K" class="1"/>
+      <ClassDef glyph="L" class="1"/>
+      <ClassDef glyph="N" class="1"/>
+      <ClassDef glyph="R" class="1"/>
+      <ClassDef glyph="S" class="1"/>
+      <ClassDef glyph="Scommaaccent" class="1"/>
+      <ClassDef glyph="T" class="1"/>
+      <ClassDef glyph="c" class="1"/>
+      <ClassDef glyph="e" class="1"/>
+      <ClassDef glyph="k" class="1"/>
+      <ClassDef glyph="l" class="1"/>
+      <ClassDef glyph="n" class="1"/>
+      <ClassDef glyph="r" class="1"/>
+      <ClassDef glyph="s" class="1"/>
+      <ClassDef glyph="scommaaccent" class="1"/>
+      <ClassDef glyph="t" class="1"/>
+      <ClassDef glyph="uni0162" class="1"/>
+      <ClassDef glyph="uni0163" class="1"/>
+      <ClassDef glyph="uni0326" class="3"/>
+    </GlyphClassDef>
+  </GDEF>
+
+</ttFont>

@@ -1,0 +1,21 @@
+yt-dlp>=2024.12.23
+opencv-python>=4.10.0.84
+mediapipe>=0.10.30
+numpy>=1.26.0
+scipy>=1.14.0
+
+# Audio analysis (100% offline)
+librosa>=0.10.0
+soundfile>=0.12.0
+webrtcvad>=2.0.10
+
+# Transcription
+openai>=1.0.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# API
+fastapi>=0.109.0
+uvicorn>=0.27.0
+python-multipart>=0.0.9

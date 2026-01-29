@@ -25,6 +25,7 @@ def main():
     parser = argparse.ArgumentParser(description="Generate viral clips from YouTube video")
     parser.add_argument("url", help="YouTube video URL")
     parser.add_argument("--limit", type=int, default=3, help="Max number of clips to generate")
+    parser.add_argument("--cookies-from-browser", nargs='?', const='chrome', help="Browser to extract cookies from (default: chrome)")
     args = parser.parse_args()
 
     print("\n" + "="*60)
@@ -33,7 +34,7 @@ def main():
 
     # 1. Download Audio
     print("\n[PHASE 1] Audio Acquisition")
-    downloader = VideoDownloader()
+    downloader = VideoDownloader(cookies_from_browser=args.cookies_from_browser)
     info = downloader.get_video_info(args.url)
     print(f"Target: {info['title']} ({info['duration']}s)")
     

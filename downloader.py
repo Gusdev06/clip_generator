@@ -8,14 +8,16 @@ import config
 
 
 class VideoDownloader:
-    def __init__(self, download_dir=None):
+    def __init__(self, download_dir=None, cookies_from_browser=None):
         """
         Initialize the video downloader
 
         Args:
             download_dir: Directory to save downloaded videos (default: from config)
+            cookies_from_browser: Browser name to extract cookies from (e.g., 'chrome', 'firefox')
         """
         self.download_dir = download_dir or config.DOWNLOAD_DIR
+        self.cookies_from_browser = cookies_from_browser
         Path(self.download_dir).mkdir(parents=True, exist_ok=True)
 
     def download(self, url, filename=None, audio_only=False):
@@ -51,6 +53,10 @@ class VideoDownloader:
                 'no_warnings': False,
                 'merge_output_format': 'mp4',
             }
+
+        # Add cookies from browser if specified
+        if self.cookies_from_browser:
+            ydl_opts['cookiesfrombrowser'] = (self.cookies_from_browser,)
 
         # Use custom filename if provided
         if filename:
@@ -90,6 +96,9 @@ class VideoDownloader:
             'quiet': True,
             'no_warnings': True,
         }
+
+        if self.cookies_from_browser:
+            ydl_opts['cookiesfrombrowser'] = (self.cookies_from_browser,)
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)

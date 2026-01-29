@@ -40,16 +40,25 @@ class ClipManager:
         
         # FFmpeg command
         if safe_mode:
-            # Re-encoding (safer for precise cuts)
-            # -ss before -i is faster seeking
+            # Re-encoding with DUAL SEEKING for speed + accuracy
+            # 1. Fast seek (-ss before -i): Jumps to approximate position quickly
+            # 2. Accurate seek (-ss after -i): Fine-tunes to exact frame
+            # This prevents subtitle sync issues while staying reasonably fast
+
+            # Calculate fast seek position (5 seconds before target for safety)
+            fast_seek = max(0, start_time - 5)
+            # Then accurate seek the remaining distance
+            accurate_seek = start_time - fast_seek
+
             cmd = [
                 'ffmpeg', '-y',
-                '-ss', str(start_time),
+                '-ss', str(fast_seek),      # Fast seek to approximate position
                 '-i', input_video,
+                '-ss', str(accurate_seek),  # Accurate seek to exact frame
                 '-t', str(duration),
                 '-c:v', 'libx264',
                 '-c:a', 'aac',
-                '-preset', 'fast',  # Fast encoding since we'll process later anyway or just draft
+                '-preset', 'fast',
                 '-crf', '23',
                 output_path
             ]

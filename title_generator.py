@@ -89,6 +89,152 @@ Você é um especialista em criar títulos ultra chamativos e virais para vídeo
 **IMPORTANTE:** Retorne APENAS o JSON válido, sem texto adicional.
 """
 
+        # Prompt expert para geração de tags/hashtags
+        self.tags_prompt = """
+Você é um especialista em otimização de conteúdo para redes sociais, especificamente na criação de hashtags estratégicas para TikTok, Reels e YouTube Shorts no mercado brasileiro.
+
+**Sua missão:** Gerar hashtags altamente eficazes em português brasileiro que maximizem:
+- Alcance orgânico
+- Descoberta por novos públicos
+- Engajamento
+- Indexação nos algoritmos
+
+**REGRAS OBRIGATÓRIAS:**
+
+1. **Diversidade de Tags:**
+   - 3 hashtags de ALTA CONCORRÊNCIA (100k-1M+ posts): para alcance máximo
+   - 4 hashtags de MÉDIA CONCORRÊNCIA (10k-100k posts): para nicho específico
+   - 3 hashtags de BAIXA CONCORRÊNCIA (<10k posts): para comunidades engajadas
+
+2. **Categorias de Tags:**
+   - Tags de nicho/categoria (ex: #empreendedorismo, #espiritualidade)
+   - Tags de formato (ex: #shorts, #reels, #viral)
+   - Tags de emoção/tema (ex: #motivacao, #transformacao)
+   - Tags trending quando relevante (se aplicável ao conteúdo)
+
+3. **Características:**
+   - Sem espaços (#motivacaopessoal, não #motivacao pessoal)
+   - Máximo 3 palavras por tag
+   - Evite caracteres especiais (exceto números quando relevante)
+   - Priorize português brasileiro
+   - Mix de tags gerais e específicas
+
+4. **Estratégia:**
+   - Alinha com o conteúdo do vídeo
+   - Considera o público-alvo
+   - Usa gatilhos do vídeo para sugerir tags
+   - Inclui variações de palavras-chave principais
+
+5. **Total:** Exatamente 10 hashtags
+
+**EXEMPLOS:**
+
+Para um vídeo sobre produtividade:
+[
+  "#produtividade", "#dicas", "#viral",
+  "#shorts", "#motivacao", "#empreendedor",
+  "#foconoobjetivo", "#sucessopessoal", "#dicasrapidas", "#transformacao"
+]
+
+Para um vídeo sobre fé/espiritualidade:
+[
+  "#fe", "#deus", "#motivacional",
+  "#shorts", "#reflexao", "#transformacao",
+  "#palavradefe", "#vidacristã", "#esperanca", "#proposito"
+]
+
+**FORMATO DE SAÍDA (JSON):**
+{
+  "tags": [
+    "#tag1",
+    "#tag2",
+    "#tag3",
+    "#tag4",
+    "#tag5",
+    "#tag6",
+    "#tag7",
+    "#tag8",
+    "#tag9",
+    "#tag10"
+  ]
+}
+
+**IMPORTANTE:**
+- Retorne APENAS o JSON válido, sem texto adicional
+- Todas as tags devem começar com #
+- Exatamente 10 hashtags
+"""
+
+    def generate_tags(self, clip_data: Dict) -> List[str]:
+        """
+        Gera 10 hashtags estratégicas em português para um clip
+
+        Args:
+            clip_data: Dicionário com informações do clip:
+                - title: Título original do clip
+                - reasoning: Explicação do potencial viral
+                - category: Categoria do clip
+                - hook_type: Tipo de gancho
+                - psychological_triggers: Gatilhos psicológicos
+                - duration: Duração em segundos
+                - viral_score: Score viral (0-10)
+
+        Returns:
+            Lista com 10 hashtags
+        """
+        print("  Gerando hashtags estratégicas em português...")
+
+        # Prepara o contexto do clip
+        context = f"""
+INFORMAÇÕES DO CLIP:
+- Título Original: {clip_data.get('title', 'N/A')}
+- Categoria: {clip_data.get('category', 'N/A')}
+- Tipo de Gancho: {clip_data.get('hook_type', 'N/A')}
+- Gatilhos Psicológicos: {', '.join(clip_data.get('psychological_triggers', []))}
+- Explicação: {clip_data.get('reasoning', 'N/A')}
+- Duração: {clip_data.get('duration', 0):.1f}s
+- Score Viral: {clip_data.get('viral_score', 0)}/10
+
+TAREFA: Gere exatamente 10 hashtags ESTRATÉGICAS em português brasileiro que maximizem o alcance e engajamento deste clip nas redes sociais.
+"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": self.tags_prompt},
+                    {"role": "user", "content": context}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.8,
+                max_tokens=300
+            )
+
+            content = response.choices[0].message.content
+            data = json.loads(content)
+            tags = data.get("tags", [])
+
+            # Garante que todas as tags começam com #
+            tags = [tag if tag.startswith('#') else f'#{tag}' for tag in tags]
+
+            if len(tags) != 10:
+                print(f"  ⚠️  Aviso: Esperava 10 tags, recebi {len(tags)}")
+
+            print("  ✓ Hashtags geradas com sucesso!")
+            print(f"    {' '.join(tags)}")
+
+            return tags
+
+        except Exception as e:
+            print(f"  ❌ Erro ao gerar hashtags: {e}")
+            # Fallback: retorna hashtags genéricas
+            category = clip_data.get('category', 'viral').lower().replace(' ', '')
+            return [
+                "#viral", "#shorts", "#reels",
+                "#fyp", "#trending", "#motivacao",
+                f"#{category}", "#brasil", "#dicas", "#transformacao"
+            ]
+
     def generate_titles(self, clip_data: Dict) -> List[str]:
         """
         Gera 3 títulos chamativos em português para um clip
@@ -159,7 +305,7 @@ TAREFA: Gere 3 variações de títulos ULTRA CHAMATIVOS em português brasileiro
 
     def create_metadata_json(self, clip_data: Dict, output_path: str) -> str:
         """
-        Cria um JSON com score e títulos para um clip
+        Cria um JSON com score, títulos e tags para um clip
 
         Args:
             clip_data: Dados do clip (ViralClip.to_dict())
@@ -170,6 +316,9 @@ TAREFA: Gere 3 variações de títulos ULTRA CHAMATIVOS em português brasileiro
         """
         # Gera os títulos
         titles = self.generate_titles(clip_data)
+
+        # Gera as hashtags
+        tags = self.generate_tags(clip_data)
 
         # Cria o metadata
         metadata = {
@@ -183,7 +332,8 @@ TAREFA: Gere 3 variações de títulos ULTRA CHAMATIVOS em português brasileiro
             "estimated_retention": clip_data.get('estimated_retention', 0),
             "share_probability": clip_data.get('share_probability', 'N/A'),
             "reasoning": clip_data.get('reasoning', ''),
-            "suggested_titles_pt": titles
+            "suggested_titles_pt": titles,
+            "tags": tags
         }
 
         # Salva o JSON ao lado do clip
@@ -217,3 +367,7 @@ if __name__ == "__main__":
     print("\nTítulos gerados:")
     for i, title in enumerate(titles, 1):
         print(f"{i}. {title}")
+
+    tags = generator.generate_tags(sample_clip)
+    print("\nHashtags geradas:")
+    print(' '.join(tags))

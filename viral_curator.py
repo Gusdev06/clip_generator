@@ -248,56 +248,86 @@ Return ONLY a valid JSON object:
 **CRITICAL:** Be EXTREMELY selective. Only clips with VPS 9+ should be returned. Quality > Quantity.
 """
 
+    def _estimate_tokens(self, text: str) -> int:
+        """Estimate token count (rough approximation: 1 token ≈ 4 characters)"""
+        return len(text) // 4
+
+    def _chunk_transcript(self, words: List[Dict], max_tokens: int = 18000) -> List[tuple]:
+        """
+        Split transcript into chunks that fit within token limits.
+        Returns list of (chunk_words, start_idx, end_idx) tuples.
+
+        Args:
+            words: List of word dictionaries with timestamps
+            max_tokens: Maximum tokens per chunk (default: 18k to stay safely under 30k with system prompt)
+        """
+        chunks = []
+        current_chunk = []
+        start_idx = 0
+
+        for i, word in enumerate(words):
+            current_chunk.append(word)
+
+            # Check chunk size periodically (every 100 words to save computation)
+            if len(current_chunk) % 100 == 0:
+                chunk_text = self._prepare_transcript_text(current_chunk)
+                chunk_tokens = self._estimate_tokens(chunk_text)
+
+                # If chunk exceeds limit, save it and start new one
+                if chunk_tokens > max_tokens:
+                    # Remove last 100 words to stay under limit
+                    final_chunk = current_chunk[:-100]
+
+                    if final_chunk:  # Only save if not empty
+                        chunks.append((final_chunk, start_idx, start_idx + len(final_chunk) - 1))
+
+                        # Start new chunk with 200-word overlap for context
+                        overlap_size = min(200, len(final_chunk) // 4)
+                        start_idx = start_idx + len(final_chunk) - overlap_size
+                        current_chunk = final_chunk[-overlap_size:] + current_chunk[-100:]
+
+        # Add final chunk
+        if current_chunk:
+            chunks.append((current_chunk, start_idx, start_idx + len(current_chunk) - 1))
+
+        return chunks
+
     def _prepare_transcript_text(self, words: List[Dict]) -> str:
         """
         Convert detailed word timestamps to a readable text format with timestamps
         to save token context while giving the LLM time reference.
-        
+
         Format: [00:12] Word word word [00:15] word word...
         """
         text_parts = []
         last_time = -10
-        
+
         for word in words:
             # Add timestamp marker every 10 seconds or so
             if word['start'] - last_time >= 15:
                 text_parts.append(f"[{word['start']:.1f}s]")
                 last_time = word['start']
-            
+
             text_parts.append(word['word'])
-            
+
         return " ".join(text_parts)
 
-    def analyze_transcript(self, transcript_path: str, max_clips: int = 5) -> List[ViralClip]:
+    def _analyze_chunk(self, chunk_text: str, chunk_num: int, total_chunks: int, clips_per_chunk: int = 5) -> List[ViralClip]:
         """
-        Analyze the transcript and identify viral clips
+        Analyze a single chunk of transcript and return viral candidates.
 
         Args:
-            transcript_path: Path to transcript_words.json
-            max_clips: Maximum number of clips to identify (default: 5)
+            chunk_text: Text of this chunk with timestamps
+            chunk_num: Current chunk number (1-indexed)
+            total_chunks: Total number of chunks
+            clips_per_chunk: Number of clips to extract from this chunk
 
         Returns:
-            List of ViralClip objects
+            List of ViralClip objects from this chunk
         """
-        print(f"Analyzing transcript for viral potential: {transcript_path}")
-
-        # Load transcript
-        with open(transcript_path, 'r', encoding='utf-8') as f:
-            words = json.load(f)
-
-        # Prepare content for LLM
-        # If transcript is huge, we might need to chunk it, but for 1-2h
-        # gpt-4o's 128k context window should handle it (approx 2h = 20k words = ~30k tokens).
-        transcript_text = self._prepare_transcript_text(words)
-
-        print(f"  Transcript length: {len(words)} words")
-        print(f"  Requesting up to {max_clips} viral clips...")
-        print("  Sending to OpenAI for expert analysis...")
-
-        # Adjust the system prompt dynamically based on max_clips
         adjusted_prompt = self.system_prompt.replace(
             "extract 3-5 segments",
-            f"extract up to {max_clips} segments"
+            f"extract up to {clips_per_chunk} segments from this section"
         )
 
         try:
@@ -305,15 +335,15 @@ Return ONLY a valid JSON object:
                 model=self.model,
                 messages=[
                     {"role": "system", "content": adjusted_prompt},
-                    {"role": "user", "content": f"Here is the transcript with timestamps embedded. Identify the TOP {max_clips} most viral, high-retention clips adhering strictly to the constraints. Return them ranked by viral score (highest first).\n\nTRANSCRIPT:\n{transcript_text}"}
+                    {"role": "user", "content": f"Here is PART {chunk_num} of {total_chunks} of the full transcript. Identify the TOP {clips_per_chunk} most viral clips in THIS SECTION. Return them ranked by viral score (highest first).\n\nTRANSCRIPT SECTION:\n{chunk_text}"}
                 ],
                 response_format={"type": "json_object"},
-                temperature=0.7  # Creative but structured
+                temperature=0.7
             )
-            
+
             content = response.choices[0].message.content
             data = json.loads(content)
-            
+
             clips = []
             for clip_data in data.get("clips", []):
                 clip = ViralClip(
@@ -331,24 +361,204 @@ Return ONLY a valid JSON object:
                     share_probability=clip_data.get("share_probability")
                 )
                 clips.append(clip)
-            
-            print(f"  ✓ Found {len(clips)} viral opportunities!")
-            for i, clip in enumerate(clips, 1):
-                print(f"\n    {i}. [{clip.viral_score}/10] {clip.title} ({clip.duration:.1f}s)")
-                if clip.hook_type:
-                    print(f"       Hook: {clip.hook_type}")
-                if clip.psychological_triggers:
-                    print(f"       Triggers: {', '.join(clip.psychological_triggers)}")
-                if clip.estimated_retention:
-                    print(f"       Est. Retention: {clip.estimated_retention}%")
-                if clip.share_probability:
-                    print(f"       Share Prob: {clip.share_probability}")
 
             return clips
-            
+
+        except Exception as e:
+            print(f"  ⚠️  Error analyzing chunk {chunk_num}: {e}")
+            return []
+
+    def analyze_transcript(self, transcript_path: str, max_clips: int = 5) -> List[ViralClip]:
+        """
+        Analyze the transcript and identify viral clips using two-phase approach:
+
+        Phase 1: If transcript is large, split into chunks and analyze each separately
+        Phase 2: Combine all candidates and select the top ones
+
+        This ensures we stay within API token limits while maintaining full context.
+
+        Args:
+            transcript_path: Path to transcript_words.json
+            max_clips: Maximum number of clips to identify (default: 5)
+
+        Returns:
+            List of ViralClip objects, ranked by viral score
+        """
+        print(f"Analyzing transcript for viral potential: {transcript_path}")
+
+        # Load transcript
+        with open(transcript_path, 'r', encoding='utf-8') as f:
+            words = json.load(f)
+
+        print(f"  Transcript length: {len(words)} words")
+
+        # Check if we need to chunk
+        full_text = self._prepare_transcript_text(words)
+        estimated_tokens = self._estimate_tokens(full_text)
+        # System prompt is ~1500 tokens, so we need headroom
+        # Safe limit: 25k tokens for transcript to leave room for system prompt + response
+        TOKEN_LIMIT = 25000
+
+        print(f"  Estimated tokens: ~{estimated_tokens:,}")
+
+        if estimated_tokens <= TOKEN_LIMIT:
+            # Small enough to process in one go
+            print(f"  ✓ Processing in single request...")
+            return self._analyze_single_pass(words, max_clips)
+        else:
+            # Need to chunk
+            print(f"  ⚠️  Transcript too large ({estimated_tokens:,} tokens > {TOKEN_LIMIT:,} limit)")
+            print(f"  📦 Using two-phase chunked analysis...")
+            return self._analyze_chunked(words, max_clips)
+
+    def _analyze_single_pass(self, words: List[Dict], max_clips: int) -> List[ViralClip]:
+        """Analyze entire transcript in one API call (for small transcripts)"""
+        transcript_text = self._prepare_transcript_text(words)
+
+        print(f"  Requesting up to {max_clips} viral clips...")
+        print("  Sending to OpenAI for expert analysis...")
+
+        adjusted_prompt = self.system_prompt.replace(
+            "extract 3-5 segments",
+            f"extract up to {max_clips} segments"
+        )
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": adjusted_prompt},
+                    {"role": "user", "content": f"Here is the complete transcript with timestamps. Identify the TOP {max_clips} most viral clips. Return them ranked by viral score (highest first).\n\nTRANSCRIPT:\n{transcript_text}"}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.7
+            )
+
+            content = response.choices[0].message.content
+            data = json.loads(content)
+
+            clips = self._parse_clips_from_response(data)
+            self._print_clips_summary(clips)
+            return clips
+
         except Exception as e:
             print(f"Error during viral curation: {e}")
             return []
+
+    def _analyze_chunked(self, words: List[Dict], max_clips: int) -> List[ViralClip]:
+        """
+        Analyze large transcript using two-phase approach:
+        Phase 1: Split into chunks and analyze each
+        Phase 2: Combine results and select best clips
+        """
+        # Split into chunks
+        chunks = self._chunk_transcript(words, max_tokens=20000)
+        print(f"  Split into {len(chunks)} chunks for processing")
+
+        # Phase 1: Analyze each chunk
+        print(f"\n  [PHASE 1] Analyzing each chunk...")
+        all_candidates = []
+
+        for i, (chunk_words, start_idx, end_idx) in enumerate(chunks, 1):
+            chunk_text = self._prepare_transcript_text(chunk_words)
+            chunk_tokens = self._estimate_tokens(chunk_text)
+
+            print(f"\n  Chunk {i}/{len(chunks)}: {len(chunk_words)} words (~{chunk_tokens:,} tokens)")
+            print(f"    Time range: {chunk_words[0]['start']:.1f}s - {chunk_words[-1]['start']:.1f}s")
+
+            # Request more clips per chunk than final needed to have options
+            clips_per_chunk = min(10, max(5, max_clips * 2 // len(chunks)))
+
+            chunk_clips = self._analyze_chunk(chunk_text, i, len(chunks), clips_per_chunk)
+            print(f"    ✓ Found {len(chunk_clips)} candidates from this chunk")
+
+            all_candidates.extend(chunk_clips)
+
+        print(f"\n  [PHASE 2] Combining results from all chunks...")
+        print(f"  Total candidates collected: {len(all_candidates)}")
+
+        # Sort all candidates by viral score
+        all_candidates.sort(key=lambda c: c.viral_score, reverse=True)
+
+        # Remove duplicates (clips with overlapping time ranges)
+        unique_clips = self._remove_overlapping_clips(all_candidates)
+        print(f"  Unique clips after deduplication: {len(unique_clips)}")
+
+        # Select top N
+        final_clips = unique_clips[:max_clips]
+
+        print(f"\n  ✓ Selected top {len(final_clips)} viral clips!")
+        self._print_clips_summary(final_clips)
+
+        return final_clips
+
+    def _remove_overlapping_clips(self, clips: List[ViralClip], overlap_threshold: float = 0.5) -> List[ViralClip]:
+        """
+        Remove clips that overlap significantly.
+        Keep the one with higher viral score.
+
+        Args:
+            clips: List of clips sorted by viral score (descending)
+            overlap_threshold: If overlap > this fraction of shorter clip, consider it duplicate
+        """
+        unique = []
+
+        for clip in clips:
+            is_duplicate = False
+            for existing in unique:
+                # Calculate overlap
+                overlap_start = max(clip.start_time, existing.start_time)
+                overlap_end = min(clip.end_time, existing.end_time)
+
+                if overlap_end > overlap_start:
+                    overlap_duration = overlap_end - overlap_start
+                    min_duration = min(clip.duration, existing.duration)
+
+                    overlap_ratio = overlap_duration / min_duration
+
+                    if overlap_ratio > overlap_threshold:
+                        is_duplicate = True
+                        break
+
+            if not is_duplicate:
+                unique.append(clip)
+
+        return unique
+
+    def _parse_clips_from_response(self, data: dict) -> List[ViralClip]:
+        """Parse API response JSON into ViralClip objects"""
+        clips = []
+        for clip_data in data.get("clips", []):
+            clip = ViralClip(
+                start_time=float(clip_data["start_time"]),
+                end_time=float(clip_data["end_time"]),
+                title=clip_data.get("title", "Untitled Clip"),
+                viral_score=float(clip_data.get("viral_score", 0)),
+                reasoning=clip_data.get("reasoning", ""),
+                category=clip_data.get("category", "General"),
+                hook_type=clip_data.get("hook_type"),
+                psychological_triggers=clip_data.get("psychological_triggers", []),
+                stepps_score=clip_data.get("stepps_score", []),
+                open_loop=clip_data.get("open_loop"),
+                estimated_retention=clip_data.get("estimated_retention"),
+                share_probability=clip_data.get("share_probability")
+            )
+            clips.append(clip)
+        return clips
+
+    def _print_clips_summary(self, clips: List[ViralClip]):
+        """Print formatted summary of clips"""
+        for i, clip in enumerate(clips, 1):
+            print(f"\n    {i}. [{clip.viral_score}/10] {clip.title} ({clip.duration:.1f}s)")
+            print(f"       Time: {clip.start_time:.1f}s - {clip.end_time:.1f}s")
+            if clip.hook_type:
+                print(f"       Hook: {clip.hook_type}")
+            if clip.psychological_triggers:
+                print(f"       Triggers: {', '.join(clip.psychological_triggers)}")
+            if clip.estimated_retention:
+                print(f"       Est. Retention: {clip.estimated_retention}%")
+            if clip.share_probability:
+                print(f"       Share Prob: {clip.share_probability}")
 
 if __name__ == "__main__":
     import sys

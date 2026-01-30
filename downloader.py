@@ -45,6 +45,13 @@ class VideoDownloader:
             'age_limit': None,
             # Prefer free formats over premium
             'prefer_free_formats': True,
+            # Add User-Agent to simulate a real browser
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-us,en;q=0.5',
+                'Sec-Fetch-Mode': 'navigate',
+            },
         }
 
         # Add cookies if available
@@ -54,6 +61,18 @@ class VideoDownloader:
         elif self.cookies_file and os.path.exists(self.cookies_file):
             ydl_opts['cookiefile'] = self.cookies_file
             print(f"  Using cookies from file: {self.cookies_file}")
+            # Verify file is readable
+            try:
+                with open(self.cookies_file, 'r') as f:
+                    cookie_content = f.read()
+                    cookie_lines = [line for line in cookie_content.split('\n') if line and not line.startswith('#')]
+                    print(f"  Cookies file loaded: {len(cookie_lines)} cookie entries found")
+            except Exception as e:
+                print(f"  WARNING: Could not read cookies file: {e}")
+        else:
+            print(f"  WARNING: No cookies configured! This may cause bot detection.")
+            print(f"  Looking for cookies at: {self.cookies_file}")
+            print(f"  File exists: {os.path.exists(self.cookies_file) if self.cookies_file else 'No path set'}")
 
         # Custom filename
         if filename:

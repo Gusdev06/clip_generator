@@ -27,10 +27,15 @@ RUN apt-get update && apt-get install -y \
     # Networking
     wget \
     curl \
-    # Node.js for yt-dlp JavaScript challenge solving (fixes "n challenge solving failed")
-    nodejs \
-    npm \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Deno (JavaScript runtime for yt-dlp to bypass YouTube bot detection)
+# yt-dlp uses Deno by default to execute JavaScript challenges from YouTube
+RUN curl -fsSL https://deno.land/install.sh | sh && \
+    mv /root/.deno/bin/deno /usr/local/bin/deno && \
+    chmod +x /usr/local/bin/deno && \
+    deno --version
 
 # Stage 2: Python dependencies
 FROM base AS dependencies
@@ -61,9 +66,20 @@ RUN mkdir -p downloads fonts models outputs outputs/clips
 # Copy application code (includes cookies.txt for YouTube authentication)
 COPY . .
 
+# Verify cookies.txt was copied and set correct permissions
+RUN if [ -f cookies.txt ]; then \
+        echo "✅ cookies.txt found"; \
+        ls -lh cookies.txt; \
+    else \
+        echo "⚠️  WARNING: cookies.txt not found!"; \
+    fi
+
 # Create non-root user for security
 RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
+
+# Ensure cookies.txt is readable by appuser
+RUN if [ -f cookies.txt ]; then chmod 644 cookies.txt; fi
 
 # Switch to non-root user
 USER appuser

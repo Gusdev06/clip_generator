@@ -22,7 +22,64 @@ class VideoDownloader:
         self.cookies_file = cookies_file or config.YT_COOKIES_FILE
         Path(self.download_dir).mkdir(parents=True, exist_ok=True)
 
-    def _get_ydl_opts(self, audio_only=False, filename=None):
+def _get_ydl_opts(self, audio_only=False, filename=None):
+        """
+        Get yt-dlp options - OPTIMIZED FOR VPS/HOSTINGER
+        """
+        ydl_opts = {
+            'outtmpl': os.path.join(self.download_dir, '%(title)s.%(ext)s'),
+            'quiet': False,
+            'no_warnings': False,
+            'progress_hooks': [self._progress_hook],
+            'ignoreerrors': True, # Importante para não travar a fila se um falhar
+            'nocheckcertificate': True, # Ajuda em alguns ambientes SSL estritos
+            
+            # --- CONFIGURAÇÕES DE EVASÃO DE BOT ---
+            
+            # 1. User Agent Dinâmico (deixe o yt-dlp escolher ou use um muito comum)
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            },
+
+            # 2. Configurações do Extrator (CORRIGIDO)
+            # REMOVEMOS 'player_skip': ['webpage'] pois isso causa o erro de Login
+            'extractor_args': {
+                'youtube': {
+                    # 'web' e 'ios' são mais confiáveis que 'android' em datacenters hoje
+                    'player_client': ['web', 'ios'],
+                }
+            },
+
+            # 3. Intervalos para parecer humano
+            'sleep_interval': 3,
+            'max_sleep_interval': 10,
+        }
+
+        # Carregamento de Cookies
+        if self.cookies_from_browser:
+            ydl_opts['cookiesfrombrowser'] = (self.cookies_from_browser,)
+        elif self.cookies_file and os.path.exists(self.cookies_file):
+            ydl_opts['cookiefile'] = self.cookies_file
+            print(f"  Using cookies from file: {self.cookies_file}")
+
+        # Nome do arquivo
+        if filename:
+            ydl_opts['outtmpl'] = os.path.join(self.download_dir, f'{filename}.%(ext)s')
+
+        # Configurações de Áudio/Vídeo
+        if audio_only:
+            ydl_opts['format'] = 'bestaudio/best'
+            ydl_opts['postprocessors'] = [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }]
+        else:
+            ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+            ydl_opts['merge_output_format'] = 'mp4'
+
+        return ydl_opts
+        
         """
         Get yt-dlp options
 
@@ -50,8 +107,24 @@ class VideoDownloader:
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                 'Accept-Language': 'en-us,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
                 'Sec-Fetch-Mode': 'navigate',
             },
+            # Extractor arguments to bypass bot detection
+            'extractor_args': {
+                'youtube': {
+                    # Use Android/iOS clients which are less restricted
+                    'player_client': ['android', 'ios', 'web'],
+                    # Skip problematic extraction methods
+                    'player_skip': ['webpage'],
+                }
+            },
+            # Retry configuration
+            'retries': 3,
+            'fragment_retries': 3,
+            # Sleep between requests to avoid rate limiting
+            'sleep_interval': 1,
+            'max_sleep_interval': 3,
         }
 
         # Add cookies if available
@@ -173,6 +246,13 @@ class VideoDownloader:
                 'quiet': True,
                 'no_warnings': True,
                 'skip_download': True,
+                # Use Android client for metadata extraction
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['android', 'ios', 'web'],
+                        'player_skip': ['webpage'],
+                    }
+                },
             }
 
             # Add cookies if available

@@ -1,14 +1,16 @@
 """
-YouTube video downloader module
+YouTube video downloader module with Cobalt API support
+Uses Cobalt API as primary method with yt-dlp as fallback
 """
 import os
 import yt_dlp
 from pathlib import Path
 import config
+from cobalt_downloader import CobaltDownloader
 
 
 class VideoDownloader:
-    def __init__(self, download_dir=None, cookies_from_browser=None, cookies_file=None):
+    def __init__(self, download_dir=None, cookies_from_browser=None, cookies_file=None, use_cobalt=True):
         """
         Initialize the video downloader
 
@@ -16,15 +18,25 @@ class VideoDownloader:
             download_dir: Directory to save downloaded videos (default: from config)
             cookies_from_browser: Browser name to extract cookies from (e.g., 'chrome', 'firefox')
             cookies_file: Path to Netscape cookies.txt file
+            use_cobalt: Try Cobalt API first before yt-dlp (default: True)
         """
         self.download_dir = download_dir or config.DOWNLOAD_DIR
         self.cookies_from_browser = cookies_from_browser or config.YT_COOKIES_FROM_BROWSER
         self.cookies_file = cookies_file or config.YT_COOKIES_FILE
+        self.use_cobalt = use_cobalt and config.USE_COBALT_API
         Path(self.download_dir).mkdir(parents=True, exist_ok=True)
+
+        # Initialize Cobalt downloader if enabled
+        if self.use_cobalt:
+            self.cobalt = CobaltDownloader(download_dir=self.download_dir)
+        else:
+            self.cobalt = None
 
     def download(self, url, filename=None, audio_only=False):
         """
         Download a YouTube video or just audio
+
+        Tries Cobalt API first, falls back to yt-dlp if Cobalt fails
 
         Args:
             url: YouTube video URL
@@ -33,6 +45,31 @@ class VideoDownloader:
 
         Returns:
             str: Path to the downloaded file
+        """
+        # Try Cobalt API first if enabled
+        if self.cobalt:
+            print(f"Downloading {'audio' if audio_only else 'video'} from: {url}")
+            cobalt_result = self.cobalt.download(url, audio_only=audio_only, filename=filename)
+            if cobalt_result:
+                return cobalt_result
+            else:
+                print(f"  Cobalt failed, falling back to yt-dlp...")
+
+        # Fallback to yt-dlp
+        print(f"Downloading {'audio' if audio_only else 'video'} via yt-dlp from: {url}")
+        return self._download_ytdlp(url, filename, audio_only)
+
+    def _download_ytdlp(self, url, filename=None, audio_only=False):
+        """
+        Download using yt-dlp (fallback method)
+
+        Args:
+            url: YouTube video URL
+            filename: Optional custom filename
+            audio_only: Download audio only
+
+        Returns:
+            str: Path to downloaded file
         """
         # Configure yt-dlp options
         if audio_only:
@@ -94,8 +131,6 @@ class VideoDownloader:
         # Use custom filename if provided
         if filename:
             ydl_opts['outtmpl'] = os.path.join(self.download_dir, f'{filename}.%(ext)s')
-
-        print(f"Downloading {'audio' if audio_only else 'video'} from: {url}")
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             # Extract video info

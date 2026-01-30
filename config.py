@@ -61,6 +61,12 @@ WHISPER_LANGUAGE = "pt"  # Language code for transcription
 # Use specific prompts only if you know the content (e.g., "Discussion about crime and rehabilitation")
 WHISPER_PROMPT = ""  # Leave empty for best results, or use content-specific prompt
 
+# Supabase settings
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_BUCKET_NAME = "clips"
+SUPABASE_TABLE_NAME = "generated_clips"
+
 # Deprecated local whisper settings
 # WHISPER_MODEL_SIZE = "large"
 # WHISPER_DEVICE = "cpu"

@@ -23,127 +23,98 @@ class TitleGenerator:
         self.client = OpenAI(api_key=self.api_key)
         self.model = model
 
-        # Prompt expert para geração de títulos virais em português
+        # Expert prompt for generating viral titles in Portuguese (Instructions in English for better adherence)
         self.system_prompt = """
-Você é um especialista em criar títulos ultra chamativos e virais para vídeos curtos no TikTok, Reels e YouTube Shorts, especificamente para o público brasileiro.
+You are a world-class expert in writing viral hooks and titles for short-form video content (TikTok, Reels, YouTube Shorts), specifically targeting the Brazilian audience.
 
-**Sua missão:** Gerar 3 variações de títulos EXTREMAMENTE CHAMATIVOS em português brasileiro que maximizem:
-- Taxa de clique (CTR)
-- Tempo de retenção nos primeiros segundos
-- Compartilhamentos
+**Your Mission:** Generate 3 variations of EXTREMELY CLICKABLE and VIRAL titles in BRAZILIAN PORTUGUESE based on the actual content of the clip.
 
-**REGRAS OBRIGATÓRIAS:**
+**CRITICAL RULES:**
+1. The title MUST REFLECT THE CONTENT. It cannot be just a generic clickbait hook. It must synthesize the "AHA moment", the "secret", or the "insight" presented in the clip.
+2. **NEVER USE FIRST PERSON** (EU, MEU, MINHA, FIZ, CONSEGUI, etc). These clips are from OTHER PEOPLE'S content, not the poster's personal story.
+3. Use SECOND PERSON (VOCÊ) to engage the viewer, or NEUTRAL/IMPERATIVE phrasing.
 
-1. **Gatilhos Mentais Poderosos:**
-   - Curiosidade extrema ("O que NINGUÉM te conta sobre...")
-   - FOMO (medo de ficar de fora)
-   - Benefício claro e tangível
-   - Números específicos ("3 formas SECRETAS...")
-   - Palavras de poder: SEGREDO, DESCOBRI, CHOCANTE, NINGUÉM, REVELADO
+**MANDATORY RULES:**
 
-2. **Estruturas Comprovadas:**
-   - Pergunta impossível de ignorar
-   - Promessa + Prova Social ("Como eu fiz X fazendo Y")
-   - Contrarian ("Pare de fazer X, faça Y ao invés")
-   - "Antes vs Depois" implícito
-   - Lista com número ímpar (3, 5, 7)
+1.  **Language:** OUTPUT MUST BE IN BRAZILIAN PORTUGUESE (PT-BR).
 
-3. **Emoções Alvo:**
-   - Curiosidade intensa
-   - Surpresa/Choque
-   - Aspiração/Inveja positiva
-   - Medo de estar errado/perdendo
+2.  **Psychological Triggers:**
+    *   Extreme Curiosity (Open Loop)
+    *   Fear Of Missing Out (FOMO)
+    *   Specific Benefit/Hack
+    *   Negativity Bias ("PARE de fazer X")
+    *   Authority/Secrets ("O que X não te conta")
+    *   Contrarian Truth ("A VERDADE sobre X")
 
-4. **Tom e Linguagem:**
-   - Informal, próximo, como amigo contando segredo
-   - Use "você" para criar conexão
-   - Emojis estratégicos (máx 1-2 por título)
-   - Gírias leves quando apropriado
-   - CAIXA ALTA estratégica para ênfase
+3.  **Proven Structures (NO FIRST PERSON!):**
+    *   Direct Question: "VOCÊ sabia que...?", "Por que VOCÊ ainda...?"
+    *   Revelation: "A VERDADE sobre [Topic]", "O SEGREDO de [Result]"
+    *   Contrarian: "PARE de [Common Action]", "Esqueça [Common Belief]"
+    *   Specific Numbers: "3 sinais de que VOCÊ...", "5 erros que VOCÊ comete..."
+    *   Shocking Statement: "[Surprising Fact] que NINGUÉM te conta"
+    *   Imperative: "Descubra [Result]", "Aprenda [Skill]"
 
-5. **Tamanho:**
-   - Mínimo: 40 caracteres
-   - Máximo: 80 caracteres
-   - Direto ao ponto, zero palavras desnecessárias
+4.  **Tone & Style:**
+    *   Conversational, informal, like revealing insider knowledge.
+    *   Use "VOCÊ" (You) to address the viewer directly.
+    *   Use 1-2 strategic Emojis (avoid overuse).
+    *   Use ALL CAPS for 1-2 key words only (for emphasis).
+    *   NO hashtags in the title.
+    *   Focus on the VALUE/INSIGHT, not who said it.
 
-**EXEMPLOS DE TÍTULOS VIRAIS:**
+5.  **Length:**
+    *   Keep it punchy. Under 65 characters is ideal. Direct to the point.
 
-❌ RUIM: "Dicas de produtividade para o dia a dia"
-✅ BOM: "3 hacks que DOBRARAM minha produtividade (ninguém fala do 3º)"
+**EXAMPLES (Context -> Good Title):**
 
-❌ RUIM: "Como fazer uma receita fácil"
-✅ BOM: "Esse truque de CHEF mudou minha vida na cozinha 🤯"
+*   *Context: Expert reveals a hidden iPhone setting.*
+    *   ✅ BOM: "Ative ISSO no seu iPhone agora (ninguém sabe) 📲"
+    *   ❌ RUIM: "Ativei ISSO no meu iPhone e mudou tudo" (primeira pessoa!)
 
-❌ RUIM: "Informações sobre finanças pessoais"
-✅ BOM: "Por que 90% das pessoas NUNCA vão ficar ricas? (revelação)"
+*   *Context: Expert explains a common investing mistake.*
+    *   ✅ BOM: "O erro de R$1.000 que VOCÊ comete todo mês 💸"
+    *   ✅ BOM: "PARE de fazer isso com seu dinheiro agora ⚠️"
+    *   ❌ RUIM: "O erro que EU cometi e perdi R$1.000" (primeira pessoa!)
 
-**FORMATO DE SAÍDA (JSON):**
+*   *Context: Entrepreneur shares contrarian career advice.*
+    *   ✅ BOM: "Por que carteira assinada NÃO é segurança? 🤔"
+    *   ✅ BOM: "A VERDADE sobre emprego que ninguém te conta 😱"
+    *   ❌ RUIM: "Nunca tive carteira assinada e venci" (primeira pessoa!)
+
+*   *Context: Speaker talks about taking risks vs comfort.*
+    *   ✅ BOM: "VOCÊ vive na caverna ou arrisca tudo? ⚠️"
+    *   ✅ BOM: "Conforto x Risco: qual VOCÊ escolhe? 🔥"
+    *   ❌ RUIM: "Como eu saí da caverna e mudei minha vida" (primeira pessoa!)
+
+**OUTPUT FORMAT (JSON ONLY):**
 {
   "titles": [
-    "Título viral 1 aqui",
-    "Título viral 2 aqui",
-    "Título viral 3 aqui"
+    "Title 1 in PT-BR",
+    "Title 2 in PT-BR",
+    "Title 3 in PT-BR"
   ]
 }
 
-**IMPORTANTE:** Retorne APENAS o JSON válido, sem texto adicional.
+**IMPORTANT:** Return ONLY valid JSON. NO first person pronouns!
 """
 
-        # Prompt expert para geração de tags/hashtags
+        # Expert prompt for generating tags/hashtags
         self.tags_prompt = """
-Você é um especialista em otimização de conteúdo para redes sociais, especificamente na criação de hashtags estratégicas para TikTok, Reels e YouTube Shorts no mercado brasileiro.
+You are a social media SEO expert specializing in hashtags for TikTok, Reels, and YouTube Shorts in Brazil.
 
-**Sua missão:** Gerar hashtags altamente eficazes em português brasileiro que maximizem:
-- Alcance orgânico
-- Descoberta por novos públicos
-- Engajamento
-- Indexação nos algoritmos
+**Your Mission:** Generate a strategic set of hashtags in BRAZILIAN PORTUGUESE to maximize organic reach and algorithm indexing for the provided video clip.
 
-**REGRAS OBRIGATÓRIAS:**
+**STRATEGY:**
+1.  **Mix of Volume:**
+    *   3 High Volume (Broad niche, e.g., #marketing, #humor)
+    *   4 Medium Volume (Specific topic, e.g., #marketingdigital, #piadas)
+    *   3 Low Volume/Community (Hyper-specific, e.g., #storytellingbr, #trocadilhos)
 
-1. **Diversidade de Tags:**
-   - 3 hashtags de ALTA CONCORRÊNCIA (100k-1M+ posts): para alcance máximo
-   - 4 hashtags de MÉDIA CONCORRÊNCIA (10k-100k posts): para nicho específico
-   - 3 hashtags de BAIXA CONCORRÊNCIA (<10k posts): para comunidades engajadas
+2.  **Relevance:** The tags MUST match the actual content keywords.
+3.  **Format:** No spaces, all lowercase (except for visual clarity if needed), must start with #.
+4.  **Language:** Primarily PT-BR tags, but universally understood English tags (like #fyp, #viral) are okay if relevant.
 
-2. **Categorias de Tags:**
-   - Tags de nicho/categoria (ex: #empreendedorismo, #espiritualidade)
-   - Tags de formato (ex: #shorts, #reels, #viral)
-   - Tags de emoção/tema (ex: #motivacao, #transformacao)
-   - Tags trending quando relevante (se aplicável ao conteúdo)
-
-3. **Características:**
-   - Sem espaços (#motivacaopessoal, não #motivacao pessoal)
-   - Máximo 3 palavras por tag
-   - Evite caracteres especiais (exceto números quando relevante)
-   - Priorize português brasileiro
-   - Mix de tags gerais e específicas
-
-4. **Estratégia:**
-   - Alinha com o conteúdo do vídeo
-   - Considera o público-alvo
-   - Usa gatilhos do vídeo para sugerir tags
-   - Inclui variações de palavras-chave principais
-
-5. **Total:** Exatamente 10 hashtags
-
-**EXEMPLOS:**
-
-Para um vídeo sobre produtividade:
-[
-  "#produtividade", "#dicas", "#viral",
-  "#shorts", "#motivacao", "#empreendedor",
-  "#foconoobjetivo", "#sucessopessoal", "#dicasrapidas", "#transformacao"
-]
-
-Para um vídeo sobre fé/espiritualidade:
-[
-  "#fe", "#deus", "#motivacional",
-  "#shorts", "#reflexao", "#transformacao",
-  "#palavradefe", "#vidacristã", "#esperanca", "#proposito"
-]
-
-**FORMATO DE SAÍDA (JSON):**
+**OUTPUT FORMAT (JSON ONLY):**
 {
   "tags": [
     "#tag1",
@@ -159,10 +130,7 @@ Para um vídeo sobre fé/espiritualidade:
   ]
 }
 
-**IMPORTANTE:**
-- Retorne APENAS o JSON válido, sem texto adicional
-- Todas as tags devem começar com #
-- Exatamente 10 hashtags
+**IMPORTANT:** Return ONLY valid JSON with exactly 10 tags.
 """
 
     def generate_tags(self, clip_data: Dict) -> List[str]:
@@ -174,28 +142,25 @@ Para um vídeo sobre fé/espiritualidade:
                 - title: Título original do clip
                 - reasoning: Explicação do potencial viral
                 - category: Categoria do clip
-                - hook_type: Tipo de gancho
-                - psychological_triggers: Gatilhos psicológicos
-                - duration: Duração em segundos
-                - viral_score: Score viral (0-10)
-
-        Returns:
-            Lista com 10 hashtags
+                - transcript_text: Texto do conteúdo do clip (Importante!)
+                # ... outros campos
         """
         print("  Gerando hashtags estratégicas em português...")
 
         # Prepara o contexto do clip
-        context = f"""
-INFORMAÇÕES DO CLIP:
-- Título Original: {clip_data.get('title', 'N/A')}
-- Categoria: {clip_data.get('category', 'N/A')}
-- Tipo de Gancho: {clip_data.get('hook_type', 'N/A')}
-- Gatilhos Psicológicos: {', '.join(clip_data.get('psychological_triggers', []))}
-- Explicação: {clip_data.get('reasoning', 'N/A')}
-- Duração: {clip_data.get('duration', 0):.1f}s
-- Score Viral: {clip_data.get('viral_score', 0)}/10
+        transcript_text = clip_data.get('transcript_text', '')
+        # Se o texto for muito longo, corta para não estourar tokens (embora CLIP seja curto)
+        if len(transcript_text) > 1000:
+            transcript_text = transcript_text[:1000] + "..."
 
-TAREFA: Gere exatamente 10 hashtags ESTRATÉGICAS em português brasileiro que maximizem o alcance e engajamento deste clip nas redes sociais.
+        context = f"""
+CLIP INFORMATION:
+- Original Context/Title: {clip_data.get('title', 'N/A')}
+- Viral Reasoning: {clip_data.get('reasoning', 'N/A')}
+- Category: {clip_data.get('category', 'N/A')}
+- Transcript/Content: "{transcript_text}"
+
+TASK: Generate exactly 10 STRATEGIC hashtags in Brazilian Portuguese for this content.
 """
 
         try:
@@ -206,7 +171,7 @@ TAREFA: Gere exatamente 10 hashtags ESTRATÉGICAS em português brasileiro que m
                     {"role": "user", "content": context}
                 ],
                 response_format={"type": "json_object"},
-                temperature=0.8,
+                temperature=0.7,
                 max_tokens=300
             )
 
@@ -240,32 +205,23 @@ TAREFA: Gere exatamente 10 hashtags ESTRATÉGICAS em português brasileiro que m
         Gera 3 títulos chamativos em português para um clip
 
         Args:
-            clip_data: Dicionário com informações do clip:
-                - title: Título original do clip
-                - reasoning: Explicação do potencial viral
-                - category: Categoria do clip
-                - hook_type: Tipo de gancho
-                - psychological_triggers: Gatilhos psicológicos
-                - duration: Duração em segundos
-                - viral_score: Score viral (0-10)
-
-        Returns:
-            Lista com 3 títulos em português
+            clip_data: Dicionário com informações do clip
         """
         print("  Gerando títulos chamativos em português...")
 
         # Prepara o contexto do clip
-        context = f"""
-INFORMAÇÕES DO CLIP:
-- Título Original: {clip_data.get('title', 'N/A')}
-- Categoria: {clip_data.get('category', 'N/A')}
-- Tipo de Gancho: {clip_data.get('hook_type', 'N/A')}
-- Gatilhos Psicológicos: {', '.join(clip_data.get('psychological_triggers', []))}
-- Explicação: {clip_data.get('reasoning', 'N/A')}
-- Duração: {clip_data.get('duration', 0):.1f}s
-- Score Viral: {clip_data.get('viral_score', 0)}/10
+        transcript_text = clip_data.get('transcript_text', '')
+        if len(transcript_text) > 1000:
+            transcript_text = transcript_text[:1000] + "..."
 
-TAREFA: Gere 3 variações de títulos ULTRA CHAMATIVOS em português brasileiro que capturem a essência viral deste clip e maximizem cliques e compartilhamentos.
+        context = f"""
+CLIP INFORMATION:
+- Viral Reasoning: {clip_data.get('reasoning', 'N/A')}
+- Category: {clip_data.get('category', 'N/A')}
+- Hook Type: {clip_data.get('hook_type', 'N/A')}
+- Transcript/Content: "{transcript_text}"
+
+TASK: Generate 3 variations of EXTREMELY CLICKABLE titles in Brazilian Portuguese that relate to the content above.
 """
 
         try:

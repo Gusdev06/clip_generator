@@ -14,7 +14,8 @@ class ViralClip:
                  viral_score: float, reasoning: str, category: str,
                  hook_type: str = None, psychological_triggers: List[str] = None,
                  stepps_score: List[str] = None, open_loop: str = None,
-                 estimated_retention: int = None, share_probability: str = None):
+                 estimated_retention: int = None, share_probability: str = None,
+                 transcript_text: str = None):
         self.start_time = start_time
         self.end_time = end_time
         self.duration = end_time - start_time
@@ -22,6 +23,7 @@ class ViralClip:
         self.viral_score = viral_score
         self.reasoning = reasoning
         self.category = category
+        self.transcript_text = transcript_text
 
         # Enhanced viral metrics
         self.hook_type = hook_type
@@ -45,7 +47,8 @@ class ViralClip:
             "stepps_score": self.stepps_score,
             "open_loop": self.open_loop,
             "estimated_retention": self.estimated_retention,
-            "share_probability": self.share_probability
+            "share_probability": self.share_probability,
+            "transcript_text": self.transcript_text
         }
 
     def __repr__(self):
@@ -404,12 +407,32 @@ Return ONLY a valid JSON object:
         if estimated_tokens <= TOKEN_LIMIT:
             # Small enough to process in one go
             print(f"  ✓ Processing in single request...")
-            return self._analyze_single_pass(words, max_clips)
+            final_clips = self._analyze_single_pass(words, max_clips)
         else:
             # Need to chunk
             print(f"  ⚠️  Transcript too large ({estimated_tokens:,} tokens > {TOKEN_LIMIT:,} limit)")
             print(f"  📦 Using two-phase chunked analysis...")
-            return self._analyze_chunked(words, max_clips)
+            final_clips = self._analyze_chunked(words, max_clips)
+        
+        # Populate transcript text for all final clips
+        for clip in final_clips:
+            # Filter words that fall within the clip's timeframe
+            clip_words = []
+            for word in words:
+                start = word.get('start', 0)
+                end = word.get('end', start) # Some words might not have end
+                
+                # Check if word overlaps with clip time
+                # Simple check: if word start is within clip range
+                if clip.start_time <= start <= clip.end_time:
+                    clip_words.append(word['word'])
+            
+            if clip_words:
+                clip.transcript_text = " ".join(clip_words)
+            else:
+                clip.transcript_text = clip.reasoning # Fallback
+                
+        return final_clips
 
     def _analyze_single_pass(self, words: List[Dict], max_clips: int) -> List[ViralClip]:
         """Analyze entire transcript in one API call (for small transcripts)"""

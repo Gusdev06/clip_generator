@@ -8,27 +8,29 @@ import config
 
 
 class VideoDownloader:
-    def __init__(self, download_dir=None, cookies_from_browser=None):
+    def __init__(self, download_dir=None, cookies_from_browser=None, cookies_file=None):
         """
         Initialize the video downloader
 
         Args:
             download_dir: Directory to save downloaded videos (default: from config)
             cookies_from_browser: Browser name to extract cookies from (e.g., 'chrome', 'firefox')
+            cookies_file: Path to Netscape cookies.txt file
         """
         self.download_dir = download_dir or config.DOWNLOAD_DIR
-        self.cookies_from_browser = cookies_from_browser
+        self.cookies_from_browser = cookies_from_browser or config.YT_COOKIES_FROM_BROWSER
+        self.cookies_file = cookies_file or config.YT_COOKIES_FILE
         Path(self.download_dir).mkdir(parents=True, exist_ok=True)
 
     def download(self, url, filename=None, audio_only=False):
         """
         Download a YouTube video or just audio
-        
+
         Args:
             url: YouTube video URL
             filename: Optional custom filename (without extension)
             audio_only: If True, download only audio (mp3)
-            
+
         Returns:
             str: Path to the downloaded file
         """
@@ -54,9 +56,36 @@ class VideoDownloader:
                 'merge_output_format': 'mp4',
             }
 
-        # Add cookies from browser if specified
-        if self.cookies_from_browser:
-            ydl_opts['cookiesfrombrowser'] = (self.cookies_from_browser,)
+        # Anti-bot headers to avoid YouTube blocking
+        ydl_opts['http_headers'] = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-us,en;q=0.5',
+            'Sec-Fetch-Mode': 'navigate',
+        }
+
+        # Cookie authentication (priority order)
+        # 1. Use cookies file if provided
+        if self.cookies_file and os.path.exists(self.cookies_file):
+            ydl_opts['cookiefile'] = self.cookies_file
+            print(f"  Using cookies from file: {self.cookies_file}")
+
+        # 2. Use cookies from browser if specified
+        elif self.cookies_from_browser:
+            try:
+                ydl_opts['cookiesfrombrowser'] = (self.cookies_from_browser,)
+                print(f"  Using cookies from browser: {self.cookies_from_browser}")
+            except Exception as e:
+                print(f"  Warning: Could not extract cookies from {self.cookies_from_browser}: {e}")
+
+        # 3. Try to use Chrome cookies by default (helps avoid bot detection)
+        elif os.path.exists(os.path.expanduser('~/.config/google-chrome')) or \
+             os.path.exists(os.path.expanduser('~/Library/Application Support/Google/Chrome')):
+            try:
+                ydl_opts['cookiesfrombrowser'] = ('chrome',)
+                print("  Using Chrome cookies for authentication")
+            except Exception:
+                pass  # If fails, continue without cookies
 
         # Use custom filename if provided
         if filename:
@@ -97,8 +126,19 @@ class VideoDownloader:
             'no_warnings': True,
         }
 
-        if self.cookies_from_browser:
-            ydl_opts['cookiesfrombrowser'] = (self.cookies_from_browser,)
+        # Add anti-bot headers
+        ydl_opts['http_headers'] = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        }
+
+        # Use cookies if available (same priority as download method)
+        if self.cookies_file and os.path.exists(self.cookies_file):
+            ydl_opts['cookiefile'] = self.cookies_file
+        elif self.cookies_from_browser:
+            try:
+                ydl_opts['cookiesfrombrowser'] = (self.cookies_from_browser,)
+            except Exception:
+                pass
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)

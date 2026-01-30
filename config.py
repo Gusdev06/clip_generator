@@ -67,6 +67,13 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 SUPABASE_BUCKET_NAME = "clips"
 SUPABASE_TABLE_NAME = "generated_clips"
 
+# YouTube Downloader settings
+# To avoid bot detection, you can provide YouTube cookies
+# Option 1: Use cookies from browser (e.g., 'chrome', 'firefox')
+YT_COOKIES_FROM_BROWSER = os.getenv("YT_COOKIES_FROM_BROWSER")  # e.g., "chrome"
+# Option 2: Path to a Netscape cookies.txt file
+YT_COOKIES_FILE = os.getenv("YT_COOKIES_FILE")  # e.g., "/app/youtube_cookies.txt"
+
 # Deprecated local whisper settings
 # WHISPER_MODEL_SIZE = "large"
 # WHISPER_DEVICE = "cpu"

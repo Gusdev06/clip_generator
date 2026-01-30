@@ -252,6 +252,38 @@ server {
 
 ## 🐛 Troubleshooting
 
+### ❌ "Sign in to confirm you're not a bot" (YouTube bloqueou)
+
+**Erro:**
+```
+ERROR: [youtube] lXP_JM6dBuk: Sign in to confirm you're not a bot
+```
+
+**Solução:** YouTube bloqueia downloads de servidores. Use cookies de autenticação.
+
+📖 **Veja o guia completo:** [YOUTUBE_COOKIES_GUIDE.md](YOUTUBE_COOKIES_GUIDE.md)
+
+**Solução rápida:**
+
+1. Exporte cookies do YouTube usando extensão do browser
+2. Faça upload para o servidor:
+   ```bash
+   scp youtube_cookies.txt root@seu-servidor:/root/clips_generator/
+   ```
+3. Adicione ao `.env`:
+   ```env
+   YT_COOKIES_FILE=/app/youtube_cookies.txt
+   ```
+4. Atualize `docker-compose.yml`:
+   ```yaml
+   volumes:
+     - ./youtube_cookies.txt:/app/youtube_cookies.txt:ro
+   ```
+5. Reinicie:
+   ```bash
+   docker-compose restart
+   ```
+
 ### Container não inicia
 
 ```bash

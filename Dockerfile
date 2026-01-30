@@ -27,6 +27,9 @@ RUN apt-get update && apt-get install -y \
     # Networking
     wget \
     curl \
+    # Node.js for yt-dlp JavaScript challenge solving (fixes "n challenge solving failed")
+    nodejs \
+    npm \
     && rm -rf /var/lib/apt/lists/*
 
 # Stage 2: Python dependencies

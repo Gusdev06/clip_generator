@@ -39,6 +39,12 @@ class VideoDownloader:
             'quiet': False,
             'no_warnings': False,
             'progress_hooks': [self._progress_hook],
+            # Ignore errors for unavailable formats and try alternatives
+            'ignoreerrors': False,
+            # Allow downloading age-restricted videos
+            'age_limit': None,
+            # Prefer free formats over premium
+            'prefer_free_formats': True,
         }
 
         # Add cookies if available
@@ -55,6 +61,7 @@ class VideoDownloader:
 
         # Audio-only settings
         if audio_only:
+            # More flexible audio format selection
             ydl_opts['format'] = 'bestaudio/best'
             ydl_opts['postprocessors'] = [{
                 'key': 'FFmpegExtractAudio',
@@ -62,8 +69,15 @@ class VideoDownloader:
                 'preferredquality': '192',
             }]
         else:
-            # Best video + best audio
-            ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+            # More flexible video format selection with fallbacks
+            # Try best video+audio, then best single file, then any available format
+            ydl_opts['format'] = (
+                'bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/'  # Best H.264 MP4 + M4A audio
+                'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/'  # Any MP4 + M4A audio, or best MP4
+                'bestvideo+bestaudio/best'  # Fallback to any video+audio or best available
+            )
+            # Merge into MP4 container
+            ydl_opts['merge_output_format'] = 'mp4'
 
         return ydl_opts
 

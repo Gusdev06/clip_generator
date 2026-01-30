@@ -12,7 +12,10 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
+      - YT_COOKIES_FILE=/app/cookies.txt
     volumes:
+      # Mount YouTube cookies for authentication
+      - ./cookies.txt:/app/cookies.txt:ro
       # Mount fonts directory for subtitles
       - ./fonts:/app/fonts:ro
       # Mount models directory (if you have pre-downloaded models)

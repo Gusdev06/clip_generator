@@ -37,7 +37,8 @@ class VideoDownloader:
         # Configure yt-dlp options
         if audio_only:
             ydl_opts = {
-                'format': 'bestaudio/best',
+                # More flexible audio format selection
+                'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
                 'outtmpl': os.path.join(self.download_dir, '%(title)s.%(ext)s'),
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
@@ -46,14 +47,17 @@ class VideoDownloader:
                 }],
                 'quiet': False,
                 'no_warnings': False,
+                'prefer_ffmpeg': True,
             }
         else:
             ydl_opts = {
-                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                # More flexible video format selection with fallbacks
+                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best',
                 'outtmpl': os.path.join(self.download_dir, '%(title)s.%(ext)s'),
                 'quiet': False,
                 'no_warnings': False,
                 'merge_output_format': 'mp4',
+                'prefer_ffmpeg': True,
             }
 
         # Anti-bot headers to avoid YouTube blocking

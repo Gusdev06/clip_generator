@@ -1,5 +1,5 @@
 # Stage 1: Base image with system dependencies
-FROM python:3.11-slim as base
+FROM python:3.11-slim AS base
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libxrender-dev \
     libgomp1 \
-    libgl1-mesa-glx \
+    libgl1 \
     # Audio processing
     libsndfile1 \
     # Networking
@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Stage 2: Python dependencies
-FROM base as dependencies
+FROM base AS dependencies
 
 WORKDIR /app
 
@@ -42,7 +42,7 @@ RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
 # Stage 3: Final production image
-FROM base as production
+FROM base AS production
 
 WORKDIR /app
 

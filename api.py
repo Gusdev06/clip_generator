@@ -127,10 +127,16 @@ def process_viral_task(job_id: str, request: ViralRequest):
         # 1. Download Audio
         print("\n[PHASE 1] Audio Acquisition")
         downloader = VideoDownloader()
-        info = downloader.get_video_info(request.url)
-        print(f"Target: {info['title']} ({info['duration']}s)")
 
-        jobs[job_id]["video_title"] = info['title']
+        # Try to get video info (optional, may fail due to bot detection)
+        info = downloader.get_video_info(request.url)
+        if info:
+            print(f"Target: {info['title']} ({info['duration']}s)")
+            jobs[job_id]["video_title"] = info['title']
+        else:
+            print(f"⚠️  Could not fetch video metadata (continuing anyway...)")
+            jobs[job_id]["video_title"] = "Unknown Title"
+
         audio_path = downloader.download(request.url, audio_only=True)
         files_to_delete.append(audio_path)  # Mark audio for deletion
 

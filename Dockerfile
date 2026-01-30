@@ -39,7 +39,9 @@ COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+    pip install -r requirements.txt && \
+    # Update yt-dlp to latest version to avoid bot detection issues
+    pip install --upgrade yt-dlp
 
 # Stage 3: Final production image
 FROM base AS production
@@ -53,7 +55,7 @@ COPY --from=dependencies /usr/local/bin /usr/local/bin
 # Create necessary directories
 RUN mkdir -p downloads fonts models outputs outputs/clips
 
-# Copy application code
+# Copy application code (includes cookies.txt for YouTube authentication)
 COPY . .
 
 # Create non-root user for security

@@ -1,17 +1,14 @@
 """
-YouTube video downloader module with Cobalt API support
-Uses Cobalt API as primary method with pytubefix as fallback
+YouTube video downloader module using yt-dlp
 """
 import os
 from pathlib import Path
-from pytubefix import YouTube
-from pytubefix.cli import on_progress
+import yt_dlp
 import config
-from cobalt_downloader import CobaltDownloader
 
 
 class VideoDownloader:
-    def __init__(self, download_dir=None, cookies_from_browser=None, cookies_file=None, use_cobalt=True):
+    def __init__(self, download_dir=None, cookies_from_browser=None, cookies_file=None):
         """
         Initialize the video downloader
 
@@ -19,25 +16,76 @@ class VideoDownloader:
             download_dir: Directory to save downloaded videos (default: from config)
             cookies_from_browser: Browser name to extract cookies from (e.g., 'chrome', 'firefox')
             cookies_file: Path to Netscape cookies.txt file
-            use_cobalt: Try Cobalt API first before yt-dlp (default: True)
         """
         self.download_dir = download_dir or config.DOWNLOAD_DIR
         self.cookies_from_browser = cookies_from_browser or config.YT_COOKIES_FROM_BROWSER
         self.cookies_file = cookies_file or config.YT_COOKIES_FILE
-        self.use_cobalt = use_cobalt and config.USE_COBALT_API
         Path(self.download_dir).mkdir(parents=True, exist_ok=True)
 
-        # Initialize Cobalt downloader if enabled
-        if self.use_cobalt:
-            self.cobalt = CobaltDownloader(download_dir=self.download_dir)
+    def _get_ydl_opts(self, audio_only=False, filename=None):
+        """
+        Get yt-dlp options
+
+        Args:
+            audio_only: If True, download only audio
+            filename: Optional custom filename (without extension)
+
+        Returns:
+            dict: yt-dlp options
+        """
+        # Base options
+        ydl_opts = {
+            'outtmpl': os.path.join(self.download_dir, '%(title)s.%(ext)s'),
+            'quiet': False,
+            'no_warnings': False,
+            'progress_hooks': [self._progress_hook],
+        }
+
+        # Add cookies if available
+        if self.cookies_from_browser:
+            ydl_opts['cookiesfrombrowser'] = (self.cookies_from_browser,)
+            print(f"  Using cookies from browser: {self.cookies_from_browser}")
+        elif self.cookies_file and os.path.exists(self.cookies_file):
+            ydl_opts['cookiefile'] = self.cookies_file
+            print(f"  Using cookies from file: {self.cookies_file}")
+
+        # Custom filename
+        if filename:
+            ydl_opts['outtmpl'] = os.path.join(self.download_dir, f'{filename}.%(ext)s')
+
+        # Audio-only settings
+        if audio_only:
+            ydl_opts['format'] = 'bestaudio/best'
+            ydl_opts['postprocessors'] = [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }]
         else:
-            self.cobalt = None
+            # Best video + best audio
+            ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+
+        return ydl_opts
+
+    def _progress_hook(self, d):
+        """
+        Progress hook for yt-dlp
+
+        Args:
+            d: Download progress dictionary
+        """
+        if d['status'] == 'downloading':
+            if 'total_bytes' in d:
+                percent = (d['downloaded_bytes'] / d['total_bytes']) * 100
+                print(f"\r  Downloading: {percent:.1f}%", end='', flush=True)
+            elif '_percent_str' in d:
+                print(f"\r  Downloading: {d['_percent_str']}", end='', flush=True)
+        elif d['status'] == 'finished':
+            print(f"\n  Download complete, processing...")
 
     def download(self, url, filename=None, audio_only=False):
         """
         Download a YouTube video or just audio
-
-        Tries Cobalt API first, falls back to yt-dlp if Cobalt fails
 
         Args:
             url: YouTube video URL
@@ -47,99 +95,34 @@ class VideoDownloader:
         Returns:
             str: Path to the downloaded file
         """
-        # Try Cobalt API first if enabled
-        if self.cobalt:
-            print(f"Downloading {'audio' if audio_only else 'video'} from: {url}")
-            cobalt_result = self.cobalt.download(url, audio_only=audio_only, filename=filename)
-            if cobalt_result:
-                return cobalt_result
-            else:
-                print(f"  Cobalt failed, falling back to yt-dlp...")
+        print(f"Downloading {'audio' if audio_only else 'video'} from: {url}")
 
-        # Fallback to pytubefix
-        print(f"Downloading {'audio' if audio_only else 'video'} via pytubefix from: {url}")
-        return self._download_pytubefix(url, filename, audio_only)
+        ydl_opts = self._get_ydl_opts(audio_only=audio_only, filename=filename)
 
-    def _download_pytubefix(self, url, filename=None, audio_only=False):
-        """
-        Download using pytubefix (fallback method)
-
-        Args:
-            url: YouTube video URL
-            filename: Optional custom filename
-            audio_only: Download audio only
-
-        Returns:
-            str: Path to downloaded file
-        """
         try:
-            # Create YouTube object with optional cookies
-            yt_params = {
-                'use_oauth': False,
-                'allow_oauth_cache': True
-            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                # Extract info to get the filename
+                info = ydl.extract_info(url, download=True)
 
-            # Add cookies if available
-            if self.cookies_file and os.path.exists(self.cookies_file):
-                print(f"  Using cookies from file: {self.cookies_file}")
-                # PyTubeFix doesn't directly support Netscape cookies
-                # We'll use the default approach
-
-            yt = YouTube(url, on_progress_callback=on_progress, **yt_params)
-
-            print(f"  Title: {yt.title}")
-            print(f"  Duration: {yt.length} seconds")
-
-            if audio_only:
-                # Get the best audio stream
-                stream = yt.streams.get_audio_only()
-                if not stream:
-                    # Fallback to any audio stream
-                    stream = yt.streams.filter(only_audio=True).first()
-
-                if not stream:
-                    raise Exception("No audio stream available")
-
-                print(f"  Downloading audio stream: {stream.abr}")
-
-                # Download the audio
-                output_file = stream.download(
-                    output_path=self.download_dir,
-                    filename=f"{filename}.mp4" if filename else None
-                )
-
-                # Convert to mp3 if needed (pytubefix downloads as mp4/webm audio)
-                if output_file.endswith('.mp4') or output_file.endswith('.webm'):
-                    # Rename to .mp3 for consistency (actual conversion would need ffmpeg)
-                    # For now, we'll keep the original format
-                    final_path = output_file
+                # Get the downloaded file path
+                if audio_only:
+                    # For audio, the file will be converted to mp3
+                    if filename:
+                        final_path = os.path.join(self.download_dir, f'{filename}.mp3')
+                    else:
+                        final_path = os.path.join(self.download_dir, f"{info['title']}.mp3")
                 else:
-                    final_path = output_file
+                    # For video
+                    if filename:
+                        final_path = os.path.join(self.download_dir, f'{filename}.mp4')
+                    else:
+                        final_path = ydl.prepare_filename(info)
 
-            else:
-                # Get the highest resolution progressive stream (video+audio in one file)
-                stream = yt.streams.get_highest_resolution()
-
-                if not stream:
-                    # Fallback to any video stream
-                    stream = yt.streams.filter(progressive=True, file_extension='mp4').first()
-
-                if not stream:
-                    raise Exception("No video stream available")
-
-                print(f"  Downloading video stream: {stream.resolution}")
-
-                # Download the video
-                final_path = stream.download(
-                    output_path=self.download_dir,
-                    filename=f"{filename}.mp4" if filename else None
-                )
-
-            print(f"Download successful: {final_path}")
-            return final_path
+                print(f"Download successful: {final_path}")
+                return final_path
 
         except Exception as e:
-            print(f"  PyTubeFix download error: {e}")
+            print(f"  Download error: {e}")
             raise
 
     def get_video_info(self, url):
@@ -153,14 +136,28 @@ class VideoDownloader:
             dict: Video information
         """
         try:
-            yt = YouTube(url)
-            return {
-                'title': yt.title,
-                'duration': yt.length,
-                'uploader': yt.author,
-                'view_count': yt.views,
-                'upload_date': yt.publish_date.strftime('%Y%m%d') if yt.publish_date else None,
+            ydl_opts = {
+                'quiet': True,
+                'no_warnings': True,
+                'skip_download': True,
             }
+
+            # Add cookies if available
+            if self.cookies_from_browser:
+                ydl_opts['cookiesfrombrowser'] = (self.cookies_from_browser,)
+            elif self.cookies_file and os.path.exists(self.cookies_file):
+                ydl_opts['cookiefile'] = self.cookies_file
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+
+                return {
+                    'title': info.get('title'),
+                    'duration': info.get('duration'),
+                    'uploader': info.get('uploader'),
+                    'view_count': info.get('view_count'),
+                    'upload_date': info.get('upload_date'),
+                }
         except Exception as e:
             print(f"Error getting video info: {e}")
             return None

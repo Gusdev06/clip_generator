@@ -67,16 +67,12 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 SUPABASE_BUCKET_NAME = "clips"
 SUPABASE_TABLE_NAME = "generated_clips"
 
-# YouTube Downloader settings
+# YouTube Downloader settings (yt-dlp)
 # To avoid bot detection, you can provide YouTube cookies
 # Option 1: Use cookies from browser (e.g., 'chrome', 'firefox')
 YT_COOKIES_FROM_BROWSER = os.getenv("YT_COOKIES_FROM_BROWSER")  # e.g., "chrome"
 # Option 2: Path to a Netscape cookies.txt file
 YT_COOKIES_FILE = os.getenv("YT_COOKIES_FILE")  # e.g., "/app/youtube_cookies.txt"
-
-# Cobalt API settings (alternative downloader - disabled by default)
-USE_COBALT_API = os.getenv("USE_COBALT_API", "false").lower() == "true"  # Disabled by default, use yt-dlp
-COBALT_API_URL = os.getenv("COBALT_API_URL", "https://api.cobalt.tools")  # Official instance
 
 # Deprecated local whisper settings
 # WHISPER_MODEL_SIZE = "large"

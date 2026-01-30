@@ -48,6 +48,3 @@ Thumbs.db
 *.tmp
 *.temp
 
-# YouTube cookies (security)
-youtube_cookies.txt
-cookies.txt

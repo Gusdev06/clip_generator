@@ -1,172 +1,86 @@
 """
-YouTube video downloader module using yt-dlp
+YouTube video downloader module
 """
 import os
-from pathlib import Path
 import yt_dlp
+from pathlib import Path
 import config
 
 
 class VideoDownloader:
-    def __init__(self, download_dir=None, cookies_from_browser=None, cookies_file=None):
+    def __init__(self, download_dir=None, cookies_from_browser=None):
         """
         Initialize the video downloader
 
         Args:
             download_dir: Directory to save downloaded videos (default: from config)
             cookies_from_browser: Browser name to extract cookies from (e.g., 'chrome', 'firefox')
-            cookies_file: Path to Netscape cookies.txt file
         """
         self.download_dir = download_dir or config.DOWNLOAD_DIR
-        self.cookies_from_browser = cookies_from_browser or config.YT_COOKIES_FROM_BROWSER
-        self.cookies_file = cookies_file or config.YT_COOKIES_FILE
+        self.cookies_from_browser = cookies_from_browser
         Path(self.download_dir).mkdir(parents=True, exist_ok=True)
-
-    def _get_ydl_opts(self, audio_only=False, filename=None):
-        """
-        Get yt-dlp options - OPTIMIZED FOR VPS/HOSTINGER
-        """
-        # Base options
-        ydl_opts = {
-            'outtmpl': os.path.join(self.download_dir, '%(title)s.%(ext)s'),
-            'quiet': False,
-            'no_warnings': False,
-            'progress_hooks': [self._progress_hook],
-            'ignoreerrors': True,  # Importante para não travar a fila se um falhar
-            'nocheckcertificate': True,  # Ajuda em alguns ambientes SSL estritos
-            
-            # --- CONFIGURAÇÕES DE EVASÃO DE BOT ---
-            
-            # 1. User Agent Dinâmico
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-us,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate',
-                'Sec-Fetch-Mode': 'navigate',
-            },
-
-            # 2. Configurações do Extrator (CORRIGIDO)
-            # REMOVEMOS 'player_skip': ['webpage'] pois isso causa o erro de Login
-            'extractor_args': {
-                'youtube': {
-                    # 'web' e 'ios' são mais confiáveis que 'android' em datacenters hoje
-                    'player_client': ['web', 'ios'],
-                }
-            },
-
-            # 3. Intervalos para parecer humano
-            'sleep_interval': 3,
-            'max_sleep_interval': 10,
-            
-            # Retry configuration
-            'retries': 3,
-            'fragment_retries': 3,
-        }
-
-        # Carregamento de Cookies
-        if self.cookies_from_browser:
-            ydl_opts['cookiesfrombrowser'] = (self.cookies_from_browser,)
-            print(f"  Using cookies from browser: {self.cookies_from_browser}")
-        elif self.cookies_file and os.path.exists(self.cookies_file):
-            ydl_opts['cookiefile'] = self.cookies_file
-            print(f"  Using cookies from file: {self.cookies_file}")
-            # Verify file is readable
-            try:
-                with open(self.cookies_file, 'r') as f:
-                    cookie_content = f.read()
-                    cookie_lines = [line for line in cookie_content.split('\n') if line and not line.startswith('#')]
-                    print(f"  Cookies file loaded: {len(cookie_lines)} cookie entries found")
-            except Exception as e:
-                print(f"  WARNING: Could not read cookies file: {e}")
-        else:
-            print(f"  WARNING: No cookies configured! This may cause bot detection.")
-            print(f"  Looking for cookies at: {self.cookies_file}")
-
-        # Nome do arquivo
-        if filename:
-            ydl_opts['outtmpl'] = os.path.join(self.download_dir, f'{filename}.%(ext)s')
-
-        # Configurações de Áudio/Vídeo
-        if audio_only:
-            # More flexible audio format selection
-            ydl_opts['format'] = 'bestaudio/best'
-            ydl_opts['postprocessors'] = [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }]
-        else:
-            # More flexible video format selection with fallbacks
-            # Try best video+audio, then best single file, then any available format
-            ydl_opts['format'] = (
-                'bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/'  # Best H.264 MP4 + M4A audio
-                'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/'  # Any MP4 + M4A audio, or best MP4
-                'bestvideo+bestaudio/best'  # Fallback to any video+audio or best available
-            )
-            # Merge into MP4 container
-            ydl_opts['merge_output_format'] = 'mp4'
-
-        return ydl_opts
-
-
-    def _progress_hook(self, d):
-        """
-        Progress hook for yt-dlp
-
-        Args:
-            d: Download progress dictionary
-        """
-        if d['status'] == 'downloading':
-            if 'total_bytes' in d:
-                percent = (d['downloaded_bytes'] / d['total_bytes']) * 100
-                print(f"\r  Downloading: {percent:.1f}%", end='', flush=True)
-            elif '_percent_str' in d:
-                print(f"\r  Downloading: {d['_percent_str']}", end='', flush=True)
-        elif d['status'] == 'finished':
-            print(f"\n  Download complete, processing...")
 
     def download(self, url, filename=None, audio_only=False):
         """
         Download a YouTube video or just audio
-
+        
         Args:
             url: YouTube video URL
             filename: Optional custom filename (without extension)
             audio_only: If True, download only audio (mp3)
-
+            
         Returns:
             str: Path to the downloaded file
         """
+        # Configure yt-dlp options
+        if audio_only:
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'outtmpl': os.path.join(self.download_dir, '%(title)s.%(ext)s'),
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+                'quiet': False,
+                'no_warnings': False,
+            }
+        else:
+            ydl_opts = {
+                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                'outtmpl': os.path.join(self.download_dir, '%(title)s.%(ext)s'),
+                'quiet': False,
+                'no_warnings': False,
+                'merge_output_format': 'mp4',
+            }
+
+        # Add cookies from browser if specified
+        if self.cookies_from_browser:
+            ydl_opts['cookiesfrombrowser'] = (self.cookies_from_browser,)
+
+        # Use custom filename if provided
+        if filename:
+            ydl_opts['outtmpl'] = os.path.join(self.download_dir, f'{filename}.%(ext)s')
+
         print(f"Downloading {'audio' if audio_only else 'video'} from: {url}")
 
-        ydl_opts = self._get_ydl_opts(audio_only=audio_only, filename=filename)
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # Extract video info
+            info = ydl.extract_info(url, download=True)
 
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # Extract info to get the filename
-                info = ydl.extract_info(url, download=True)
-
-                # Get the downloaded file path
+            # Get the actual downloaded file path
+            if filename:
+                ext = 'mp3' if audio_only else 'mp4'
+                file_path = os.path.join(self.download_dir, f'{filename}.{ext}')
+            else:
+                # Use yt-dlp's prepare_filename -> but we need to handle mp3 conversion path
+                # Ideally, we should trust prepare_filename but postprocessors might change ext
+                file_path = ydl.prepare_filename(info)
                 if audio_only:
-                    # For audio, the file will be converted to mp3
-                    if filename:
-                        final_path = os.path.join(self.download_dir, f'{filename}.mp3')
-                    else:
-                        final_path = os.path.join(self.download_dir, f"{info['title']}.mp3")
-                else:
-                    # For video
-                    if filename:
-                        final_path = os.path.join(self.download_dir, f'{filename}.mp4')
-                    else:
-                        final_path = ydl.prepare_filename(info)
+                    file_path = os.path.splitext(file_path)[0] + '.mp3'
 
-                print(f"Download successful: {final_path}")
-                return final_path
-
-        except Exception as e:
-            print(f"  Download error: {e}")
-            raise
+            print(f"Download successful: {file_path}")
+            return file_path
 
     def get_video_info(self, url):
         """
@@ -178,39 +92,23 @@ class VideoDownloader:
         Returns:
             dict: Video information
         """
-        try:
-            ydl_opts = {
-                'quiet': True,
-                'no_warnings': True,
-                'skip_download': True,
-                # Use Android client for metadata extraction
-                'extractor_args': {
-                    'youtube': {
-                        'player_client': ['android', 'ios', 'web'],
-                        'player_skip': ['webpage'],
-                    }
-                },
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+        }
+
+        if self.cookies_from_browser:
+            ydl_opts['cookiesfrombrowser'] = (self.cookies_from_browser,)
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            return {
+                'title': info.get('title'),
+                'duration': info.get('duration'),
+                'uploader': info.get('uploader'),
+                'view_count': info.get('view_count'),
+                'upload_date': info.get('upload_date'),
             }
-
-            # Add cookies if available
-            if self.cookies_from_browser:
-                ydl_opts['cookiesfrombrowser'] = (self.cookies_from_browser,)
-            elif self.cookies_file and os.path.exists(self.cookies_file):
-                ydl_opts['cookiefile'] = self.cookies_file
-
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-
-                return {
-                    'title': info.get('title'),
-                    'duration': info.get('duration'),
-                    'uploader': info.get('uploader'),
-                    'view_count': info.get('view_count'),
-                    'upload_date': info.get('upload_date'),
-                }
-        except Exception as e:
-            print(f"Error getting video info: {e}")
-            return None
 
 
 if __name__ == "__main__":

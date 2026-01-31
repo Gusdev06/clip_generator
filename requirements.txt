@@ -1,9 +1,5 @@
 # --- Core Video/Audio Processing ---
 yt-dlp>=2024.12.23
-yt-dlp-get-pot
-# Provedores necessários para o yt-dlp-get-pot funcionar:
-yt-dlp-getpot-wpc
-bgutil-ytdlp-pot-provider
 
 # --- Computer Vision & Media ---
 opencv-python>=4.10.0.84
